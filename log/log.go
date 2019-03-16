@@ -30,6 +30,13 @@ func GetLogLevelText(level int) string {
 	return "UNDEF"
 }
 
+func GetLogAgent(level int, title string) *LogAgent {
+	if level >= LogLevelMax {
+		level = LogLevelEmpty
+	}
+	return &LogAgent{level, title}
+}
+
 type LogAgent struct {
 	logLevel int
 	modTitle string
@@ -38,6 +45,10 @@ type LogAgent struct {
 func (log *LogAgent) Init(level int, title string) {
 	log.logLevel = level
 	log.modTitle = title
+}
+
+func (log *LogAgent) SetLevel(level int) {
+	log.logLevel = level
 }
 
 func (log LogAgent) IsTrace() bool {
