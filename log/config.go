@@ -32,6 +32,19 @@ func (cfg *LogConfig) String() string {
 	return str
 }
 
+func GetDefaultConfig(name string) *LogConfig {
+	cfg := LogConfig{
+		LogPath:   "",
+		LogFile:   name,
+		LogLevel:  LogLevelTrace,
+		ConsLevel: LogLevelError,
+		MaxFiles:  8,
+		DelFiles:  1,
+		MaxSize:   1024,
+	}
+	return &cfg
+}
+
 // Get go routine ID as a string
 func GetGID() string {
 	b := make([]byte, 64)

@@ -1,9 +1,9 @@
 package log
 
 import (
+	"errors"
 	"fmt"
 	"os"
-	"path"
 	"sort"
 	"strings"
 	"time"
@@ -17,25 +17,14 @@ const (
 	kLogFilenameMinLen = 5 + kLogCreatedTimeLen
 )
 
-var gProgname = path.Base(os.Args[0])
-
-// init is called after all the variable declarations in the package have evaluated their initializers,
-// and those are evaluated only after all the imported packages have been initialized.
-// Besides initializations that cannot be expressed as declarations, a common use of init functions is to verify
-// or repair correctness of the program state before real execution begins.
-func init() {
-	tmpProgname := strings.Split(gProgname, "\\") // for compatible with `go run` under Windows
-	gProgname = tmpProgname[len(tmpProgname)-1]
-}
-
-// logger
+// file logger
 type fileLogger struct {
 	config *LogConfig
 	file   *os.File
 	day    int
 	size   int64
 	read   chan []byte
-	files  int // number of files under `logPath` currently
+	files  int // number of files under `LogPath` currently
 }
 
 var gLogger fileLogger
@@ -49,8 +38,9 @@ func StartFileLogger(cfg *LogConfig) {
 }
 
 func StopFileLogger() {
-	if gLogger.config != nil && gLogger.config.LogLevel > LogLevelEmpty {
+	if gLogger.config != nil && gLogger.file != nil {
 		gLogger.read <- []byte{}
+		//	<- gLogger.read
 	}
 }
 
@@ -66,6 +56,10 @@ func LogToFile(level int, mesg string) {
 }
 
 func (this *fileLogger) work() {
+	if err := this.checkConfig(); err != nil {
+		fmt.Println(err)
+		return
+	}
 	this.delOldFiles()
 	this.reopenLogFile(time.Now())
 	for {
@@ -80,9 +74,24 @@ func (this *fileLogger) work() {
 		}
 	}
 	close(this.read)
+	this.read = nil
 	if this.file != nil {
 		this.file.Close()
+		this.file = nil
 	}
+}
+
+func (this *fileLogger) checkConfig() error {
+	if this.config == nil {
+		return errors.New("Logging: config is not set")
+	}
+	if this.config.LogFile == "" {
+		return errors.New("Logging: file name is not set")
+	}
+	if this.config.LogPath != "" {
+		os.MkdirAll(this.config.LogPath, 0644)
+	}
+	return nil
 }
 
 func (this *fileLogger) logMsg(data []byte) {
@@ -103,14 +112,18 @@ func (this *fileLogger) logMsg(data []byte) {
 }
 
 func (this *fileLogger) delOldFiles() {
-	files, err := getLogfilenames(this.config.LogPath)
+	dirName := this.config.LogPath
+	if dirName == "" {
+		dirName = "./"
+	}
+	files, err := getLogfilenames(dirName, this.config.LogFile)
 	if err != nil {
-		fmt.Print(err)
+		fmt.Println(err)
 		return
 	}
 	this.files = len(files)
 	if this.files >= this.config.MaxFiles {
-		sort.Sort(byCreatedTime(files))
+		//		sort.Sort(byCreatedTime(files))
 		//			fmt.Println(files)
 		nfiles := this.files - this.config.MaxFiles + this.config.DelFiles
 		if nfiles > this.files {
@@ -118,7 +131,7 @@ func (this *fileLogger) delOldFiles() {
 		}
 		for i := 0; i < nfiles; i++ {
 			fmt.Println("Remove file", files[i])
-			err := os.RemoveAll(this.config.LogPath + files[i])
+			err := os.RemoveAll(dirName + files[i])
 			if err == nil {
 				this.files--
 			} else {
@@ -129,14 +142,17 @@ func (this *fileLogger) delOldFiles() {
 }
 
 func (this *fileLogger) reopenLogFile(t time.Time) {
-	y, m, d := t.Date()
+	year, mon, day := t.Date()
 	hour, min, sec := t.Clock()
-	filename := fmt.Sprintf("%s%s.%d%02d%02d_%02d%02d%02d.log",
-		this.config.LogPath, this.config.LogFile, y, m, d, hour, min, sec)
+	filename := fmt.Sprintf("%s.%d%02d%02d_%02d%02d%02d.log",
+		this.config.LogFile, year, mon, day, hour, min, sec)
+	if this.config.LogPath != "" {
+		filename = this.config.LogPath + "/" + filename
+	}
 	//		fmt.Println(filename)
 	newfile, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
-		fmt.Print(err)
+		fmt.Println(err)
 		return
 	}
 	this.files++
@@ -144,7 +160,7 @@ func (this *fileLogger) reopenLogFile(t time.Time) {
 		this.file.Close()
 	}
 	this.file = newfile
-	this.day = d
+	this.day = day
 	this.size = 0
 }
 
@@ -174,8 +190,9 @@ func (a byCreatedTime) Swap(i, j int) {
 }
 
 // helpers
-func getLogfilenames(dir string) ([]string, error) {
+func getLogfilenames(dir, name string) ([]string, error) {
 	var filenames []string
+	var goodnames byCreatedTime
 	f, err := os.Open(dir)
 	if err == nil {
 		filenames, err = f.Readdirnames(0)
@@ -183,5 +200,11 @@ func getLogfilenames(dir string) ([]string, error) {
 		if err == nil {
 		}
 	}
-	return filenames, err
+	for _, file := range filenames {
+		if strings.Contains(file, name) && strings.Contains(file, ".log") {
+			goodnames = append(goodnames, file)
+		}
+	}
+	sort.Sort(goodnames)
+	return goodnames, err
 }
