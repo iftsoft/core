@@ -2,28 +2,28 @@ package main
 
 import (
 	"fmt"
-	"github.com/iftsoft/core/log"
+	"github.com/iftsoft/core"
 	"time"
 )
 
 func main() {
 	fmt.Println("-------BEGIN------------")
 
-	logCfg := log.LogConfig{
+	logCfg := core.LogConfig{
 		LogPath:   "logs",
 		LogFile:   "sample",
-		LogLevel:  log.LogLevelTrace,
-		ConsLevel: log.LogLevelError,
+		LogLevel:  core.LogLevelTrace,
+		ConsLevel: core.LogLevelError,
 		MaxFiles:  4,
 		DelFiles:  1,
 		MaxSize:   1024,
 	}
-	log.StartFileLogger(&logCfg)
-	out := log.GetLogAgent(log.LogLevelTrace, "APP")
-	out.Info("Start application")
+	core.StartFileLogger(&logCfg)
+	log := core.GetLogAgent(core.LogLevelTrace, "APP")
+	log.Info("Start application")
 
-	out.Info("Stop application")
+	log.Info("Stop application")
 	time.Sleep(time.Second)
-	log.StopFileLogger()
+	core.StopFileLogger()
 	fmt.Println("-------END------------")
 }
