@@ -3,27 +3,27 @@ package main
 import (
 	"fmt"
 	"github.com/iftsoft/core"
-	"time"
 )
+
+type AppConfig struct {
+	Logging core.LogConfig `yaml:"logging"`
+}
 
 func main() {
 	fmt.Println("-------BEGIN------------")
 
-	logCfg := core.LogConfig{
-		LogPath:   "logs",
-		LogFile:   "sample",
-		LogLevel:  core.LogLevelTrace,
-		ConsLevel: core.LogLevelError,
-		MaxFiles:  4,
-		DelFiles:  1,
-		MaxSize:   1024,
+	config := &AppConfig{}
+	err := core.ReadYamlFile("config.yml", config)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		core.StartFileLogger(&config.Logging)
 	}
-	core.StartFileLogger(&logCfg)
 	log := core.GetLogAgent(core.LogLevelTrace, "APP")
 	log.Info("Start application")
+	log.Info("Config %+v", config)
 
 	log.Info("Stop application")
-	time.Sleep(time.Second)
 	core.StopFileLogger()
 	fmt.Println("-------END------------")
 }

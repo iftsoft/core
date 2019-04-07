@@ -45,6 +45,7 @@ func StartFileLogger(cfg *LogConfig) {
 }
 
 func StopFileLogger() {
+	time.Sleep(time.Millisecond)
 	if gLogger.config != nil && gLogger.file != nil {
 		gLogger.read <- []byte{}
 		<-gLogger.read
@@ -71,16 +72,17 @@ func (this *fileLogger) work() {
 			if len(mesg) > 0 {
 				this.logMsg(mesg)
 			} else {
-				this.logMsg([]byte("Close log file"))
-				close(this.read)
-				this.read = nil
-				if this.file != nil {
-					_ = this.file.Close()
-					this.file = nil
-				}
-				return
+				goto ExitLogger
 			}
 		}
+	}
+ExitLogger:
+	this.logMsg([]byte("Close log file"))
+	close(this.read)
+	this.read = nil
+	if this.file != nil {
+		_ = this.file.Close()
+		this.file = nil
 	}
 }
 
@@ -102,6 +104,9 @@ func (this *fileLogger) logMsg(data []byte) {
 }
 
 func (this *fileLogger) delOldFiles() {
+	if this.config.MaxFiles == 0 {
+		return
+	}
 	files, err := getLogfilenames(this.config.LogPath, this.config.LogFile)
 	if err != nil {
 		fmt.Println(err)
@@ -109,7 +114,7 @@ func (this *fileLogger) delOldFiles() {
 	}
 	this.files = len(files)
 	if this.files >= this.config.MaxFiles {
-		nfiles := this.files - this.config.MaxFiles + this.config.DelFiles
+		nfiles := this.files - this.config.MaxFiles + 1
 		if nfiles > this.files {
 			nfiles = this.files
 		}

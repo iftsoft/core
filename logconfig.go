@@ -6,13 +6,12 @@ import (
 )
 
 type LogConfig struct {
-	LogPath   string
-	LogFile   string
-	LogLevel  int
-	ConsLevel int
-	MaxFiles  int   // limit the number of log files under `logPath`
-	DelFiles  int   // number of files deleted when reaching the limit of the number of log files
-	MaxSize   int64 // limit size of a log file (KByte)
+	LogPath   string `yaml:"logPath"`
+	LogFile   string `yaml:"logFile"`
+	LogLevel  int    `yaml:"logLevel"`
+	ConsLevel int    `yaml:"consLevel"`
+	MaxFiles  int    `yaml:"maxFiles"` // limit the number of log files under `logPath`
+	MaxSize   int64  `yaml:"maxSize"`  // limit size of a log file (KByte)
 }
 
 func (cfg *LogConfig) PrintData() {
@@ -21,13 +20,12 @@ func (cfg *LogConfig) PrintData() {
 	fmt.Println("LogLevel ", GetLogLevelText(cfg.LogLevel))
 	fmt.Println("ConsLevel", GetLogLevelText(cfg.ConsLevel))
 	fmt.Println("MaxFiles ", cfg.MaxFiles)
-	fmt.Println("DelFiles ", cfg.DelFiles)
 	fmt.Println("MaxSize  ", cfg.MaxSize)
 }
 func (cfg *LogConfig) String() string {
 	str := fmt.Sprintf("Logging config: "+
-		"LogPath = %s, LogFile = %s, LogLevel = %s, ConsLevel = %s, MaxFiles = %d, DelFiles = %d, MaxSize = %d.",
-		cfg.LogPath, cfg.LogFile, GetLogLevelText(cfg.LogLevel), GetLogLevelText(cfg.ConsLevel), cfg.MaxFiles, cfg.DelFiles, cfg.MaxSize)
+		"LogPath = %s, LogFile = %s, LogLevel = %s, ConsLevel = %s, MaxFiles = %d, MaxSize = %d.",
+		cfg.LogPath, cfg.LogFile, GetLogLevelText(cfg.LogLevel), GetLogLevelText(cfg.ConsLevel), cfg.MaxFiles, cfg.MaxSize)
 	return str
 }
 
@@ -38,7 +36,6 @@ func GetDefaultConfig(name string) *LogConfig {
 		LogLevel:  LogLevelInfo,
 		ConsLevel: LogLevelError,
 		MaxFiles:  8,
-		DelFiles:  1,
 		MaxSize:   1024,
 	}
 	return &cfg
@@ -62,9 +59,6 @@ func checkLogConfig(cfg *LogConfig) (err error) {
 	}
 	if cfg.MaxFiles < 0 || cfg.MaxFiles >= 1024 {
 		cfg.MaxFiles = 8
-	}
-	if cfg.DelFiles < 0 || cfg.DelFiles >= cfg.MaxFiles {
-		cfg.DelFiles = 1
 	}
 	if cfg.MaxSize < 0 || cfg.MaxSize >= 128*1024 {
 		cfg.MaxSize = 1024
