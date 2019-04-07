@@ -1,7 +1,6 @@
 package log
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -10,8 +9,7 @@ import (
 )
 
 const (
-	kChannelSize = 1024
-	//	kMaxInt64			= int64(^uint64(0) >> 1)
+	kChannelSize       = 1024
 	kLogExtensionLen   = 4
 	kLogCreatedTimeLen = 15 + kLogExtensionLen
 	kLogFilenameMinLen = 5 + kLogCreatedTimeLen
@@ -30,8 +28,17 @@ type fileLogger struct {
 var gLogger fileLogger
 
 func StartFileLogger(cfg *LogConfig) {
+	if err := checkLogConfig(cfg); err != nil {
+		fmt.Println(err)
+		return
+	}
+	err := os.MkdirAll(cfg.LogPath, 0644)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	gLogger.config = cfg
-	if gLogger.config != nil && gLogger.config.LogLevel > LogLevelEmpty {
+	if gLogger.config.LogLevel > LogLevelEmpty {
 		gLogger.read = make(chan []byte, kChannelSize)
 		go gLogger.work()
 	}
@@ -40,7 +47,7 @@ func StartFileLogger(cfg *LogConfig) {
 func StopFileLogger() {
 	if gLogger.config != nil && gLogger.file != nil {
 		gLogger.read <- []byte{}
-		//	<- gLogger.read
+		<-gLogger.read
 	}
 }
 
@@ -56,10 +63,6 @@ func LogToFile(level int, mesg string) {
 }
 
 func (this *fileLogger) work() {
-	if err := this.checkConfig(); err != nil {
-		fmt.Println(err)
-		return
-	}
 	this.delOldFiles()
 	this.reopenLogFile(time.Now())
 	for {
@@ -69,29 +72,16 @@ func (this *fileLogger) work() {
 				this.logMsg(mesg)
 			} else {
 				this.logMsg([]byte("Close log file"))
-				break
+				close(this.read)
+				this.read = nil
+				if this.file != nil {
+					_ = this.file.Close()
+					this.file = nil
+				}
+				return
 			}
 		}
 	}
-	close(this.read)
-	this.read = nil
-	if this.file != nil {
-		this.file.Close()
-		this.file = nil
-	}
-}
-
-func (this *fileLogger) checkConfig() error {
-	if this.config == nil {
-		return errors.New("Logging: config is not set")
-	}
-	if this.config.LogFile == "" {
-		return errors.New("Logging: file name is not set")
-	}
-	if this.config.LogPath != "" {
-		os.MkdirAll(this.config.LogPath, 0644)
-	}
-	return nil
 }
 
 func (this *fileLogger) logMsg(data []byte) {
@@ -112,26 +102,21 @@ func (this *fileLogger) logMsg(data []byte) {
 }
 
 func (this *fileLogger) delOldFiles() {
-	dirName := this.config.LogPath
-	if dirName == "" {
-		dirName = "./"
-	}
-	files, err := getLogfilenames(dirName, this.config.LogFile)
+	files, err := getLogfilenames(this.config.LogPath, this.config.LogFile)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	this.files = len(files)
 	if this.files >= this.config.MaxFiles {
-		//		sort.Sort(byCreatedTime(files))
-		//			fmt.Println(files)
 		nfiles := this.files - this.config.MaxFiles + this.config.DelFiles
 		if nfiles > this.files {
 			nfiles = this.files
 		}
 		for i := 0; i < nfiles; i++ {
-			fmt.Println("Remove file", files[i])
-			err := os.RemoveAll(dirName + files[i])
+			filename := this.config.LogPath + string(os.PathSeparator) + files[i]
+			fmt.Println("Remove file", filename)
+			err := os.RemoveAll(filename)
 			if err == nil {
 				this.files--
 			} else {
@@ -144,11 +129,9 @@ func (this *fileLogger) delOldFiles() {
 func (this *fileLogger) reopenLogFile(t time.Time) {
 	year, mon, day := t.Date()
 	hour, min, sec := t.Clock()
-	filename := fmt.Sprintf("%s.%d%02d%02d_%02d%02d%02d.log",
+	filename := fmt.Sprintf("%s%s%s.%d%02d%02d_%02d%02d%02d.log",
+		this.config.LogPath, string(os.PathSeparator),
 		this.config.LogFile, year, mon, day, hour, min, sec)
-	if this.config.LogPath != "" {
-		filename = this.config.LogPath + "/" + filename
-	}
 	//		fmt.Println(filename)
 	newfile, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
@@ -157,7 +140,7 @@ func (this *fileLogger) reopenLogFile(t time.Time) {
 	}
 	this.files++
 	if this.file != nil {
-		this.file.Close()
+		err = this.file.Close()
 	}
 	this.file = newfile
 	this.day = day
@@ -196,7 +179,7 @@ func getLogfilenames(dir, name string) ([]string, error) {
 	f, err := os.Open(dir)
 	if err == nil {
 		filenames, err = f.Readdirnames(0)
-		f.Close()
+		err = f.Close()
 		if err == nil {
 		}
 	}

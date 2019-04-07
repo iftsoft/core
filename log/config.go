@@ -2,6 +2,7 @@ package log
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"runtime"
 )
@@ -36,13 +37,41 @@ func GetDefaultConfig(name string) *LogConfig {
 	cfg := LogConfig{
 		LogPath:   "",
 		LogFile:   name,
-		LogLevel:  LogLevelTrace,
+		LogLevel:  LogLevelInfo,
 		ConsLevel: LogLevelError,
 		MaxFiles:  8,
 		DelFiles:  1,
 		MaxSize:   1024,
 	}
 	return &cfg
+}
+
+func checkLogConfig(cfg *LogConfig) (err error) {
+	if cfg == nil {
+		return errors.New("Logging: config is not set")
+	}
+	if cfg.LogFile == "" {
+		return errors.New("Logging: file name is not set")
+	}
+	if cfg.LogPath == "" {
+		cfg.LogPath = "."
+	}
+	if cfg.LogLevel < LogLevelEmpty || cfg.LogLevel >= LogLevelMax {
+		cfg.LogLevel = LogLevelInfo
+	}
+	if cfg.ConsLevel < LogLevelEmpty || cfg.ConsLevel >= LogLevelMax {
+		cfg.ConsLevel = LogLevelError
+	}
+	if cfg.MaxFiles < 0 || cfg.MaxFiles >= 1024 {
+		cfg.MaxFiles = 8
+	}
+	if cfg.DelFiles < 0 || cfg.DelFiles >= cfg.MaxFiles {
+		cfg.DelFiles = 1
+	}
+	if cfg.MaxSize < 0 || cfg.MaxSize >= 128*1024 {
+		cfg.MaxSize = 1024
+	}
+	return err
 }
 
 // Get go routine ID as a string

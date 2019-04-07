@@ -14,7 +14,7 @@ func main() {
 		LogFile:   "sample",
 		LogLevel:  log.LogLevelTrace,
 		ConsLevel: log.LogLevelError,
-		MaxFiles:  8,
+		MaxFiles:  4,
 		DelFiles:  1,
 		MaxSize:   1024,
 	}
